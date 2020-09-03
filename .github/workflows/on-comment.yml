@@ -19,7 +19,7 @@ jobs:
 
             - uses: xt0rted/pull-request-comment-branch@v1
               id: comment-branch
-              if: steps.deploytrigger.outputs.triggered == 'true' && github.event.pull_request.head.ref
+              if: steps.deploytrigger.outputs.triggered == 'true'
               with:
                   repo_token: ${{ secrets.GITHUB_TOKEN }}
 
