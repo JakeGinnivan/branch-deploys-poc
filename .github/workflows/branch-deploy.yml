@@ -1,7 +1,7 @@
 name: Branch Deploy
 on:
     repository_dispatch:
-        types: branch-deploy
+        types: [branch-deploy]
 
 jobs:
     deploy:

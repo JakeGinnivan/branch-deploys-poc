@@ -6,7 +6,7 @@ on:
 jobs:
     handle-comment:
         timeout-minutes: 30
-        runs-on: self-hosted
+        runs-on: ubuntu-latest
 
         steps:
             - uses: khan/pull-request-comment-trigger@master
@@ -19,15 +19,23 @@ jobs:
 
             - uses: xt0rted/pull-request-comment-branch@v1
               id: comment-branch
-              if: steps.deploytrigger.outputs.triggered == 'true' && github.event.pull_request.head.ref
+              if: steps.deploytrigger.outputs.triggered == 'true'
               with:
                   repo_token: ${{ secrets.GITHUB_TOKEN }}
 
-            - run: |
-                  curl -H "Accept: application/vnd.github.everest-preview+json" \
-                  -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-                  --request POST \
-                  --data '{"event_type": "branch-deploy", "client_payload": { "ref": "${{ steps.comment-branch.outputs.ref }}" } }' \
-                  https://api.github.com/repos/JakeGinnivan/branch-deploys-poc/dispatches
-
+            - uses: peter-evans/repository-dispatch@v1
               if: steps.comment-branch.outputs.ref
+              with:
+                token: ${{ secrets.GITHUB_TOKEN }}
+                repository: JakeGinnivan/branch-deploys-poc
+                event-type: branch-deploy
+                client-payload: '{"ref": "${{ steps.comment-branch.outputs.ref }}" }'
+
+            # - run: |
+            #       curl -H "Accept: application/vnd.github.v3+json" \
+            #       -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            #       --request POST \
+            #       --data '{"event_type": "branch-deploy", "client_payload": { "ref": "${{ steps.comment-branch.outputs.ref }}" } }' \
+            #       https://api.github.com/repos/JakeGinnivan/branch-deploys-poc/dispatches
+
+            #   if: steps.comment-branch.outputs.ref
