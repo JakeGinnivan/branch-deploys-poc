@@ -1,17 +1,33 @@
 name: Branch Deploy
 on:
-    repository_dispatch:
-        types: [branch-deploy]
+  issue_comment:
+    types: [created]
 
 jobs:
-    deploy:
+  deploy-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: acknowledge deployment request to commenter
+        id: check
+        uses: khan/pull-request-comment-trigger@master
+        with:
+          trigger: "/deploy"
+          reaction: rocket
+        env:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+    outputs:
+      triggered: ${{ steps.check.outputs.triggered }}
+
+  deploy:
         timeout-minutes: 30
+        needs: deploy-check
+        if: needs.deploy-check.outputs.triggered == 'true'
         runs-on: ubuntu-latest
 
         steps:
             - uses: actions/checkout@v2
               with:
-                  ref: ${{ github.event.client_payload.ref }}
+                  ref: ${{ fromJson(steps.get_pull_request_ref.outputs.data).head.ref }}
                   fetch-depth: 0
 
             - name: Set Node.JS 14.x
@@ -29,6 +45,73 @@ jobs:
                   files: ".pulumi/the-game.pr${{ github.event.payload.issue.number }}.yml"
 
             - name: Create stack
-              if: steps.check_stack.outputs.files_exists == 'true'
+              if: steps.check_stack.outputs.files_exists != 'true'
               # Only runs if all of the files exists
               run: echo Creating stack....
+
+            - name: Create deployment
+              id: create_deployment
+              uses: octokit/request-action@v2.x
+              with:
+                route: POST /repos/:repository/deployments
+                repository: ${{ github.repository }}
+                ref: ${{ fromJson(steps.get_pull_request_ref.outputs.data).head.ref }}
+                environment: "branch-deploy-${{ github.event.payload.issue.number }}"
+                auto_merge: false
+                transient_environment: true
+              env:
+                GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+            - name: Set deployment status to in progress
+              id: start_deployment
+              uses: octokit/request-action@v2.x
+              with:
+                route: POST /repos/:repository/deployments/:deployment/statuses
+                repository: ${{ github.repository }}
+                deployment: ${{ fromJson(steps.create_deployment.outputs.data).id }}
+                environment: "branch-deploy-${{ github.event.payload.issue.number }}"
+                log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                state: in_progress
+                mediaType: '{"previews": ["flash", "ant-man"]}'
+              env:
+                GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+            - name: Deploy the pull request
+              id: deploy
+              run: |
+                # deployment logic goes here
+                sleep 10
+                # Get pulumi output
+                echo ::set-output name=branch_deploy_url::https://test-url.com
+                # instead we randomly succeed or fail the deployment
+                exit $(( $RANDOM % 10 >= 5 ))
+
+            - name: Set deployment status to success
+              id: successful_deployment
+              uses: octokit/request-action@v2.x
+              with:
+                route: POST /repos/:repository/deployments/:deployment/statuses
+                repository: ${{ github.repository }}
+                deployment: ${{ fromJson(steps.create_deployment.outputs.data).id }}
+                environment_url: ${{ steps.deploy.outputs.branch_deploy_url }}
+                environment: "branch-deploy-${{ github.event.payload.issue.number }}"
+                log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                mediaType: '{"previews": ["ant-man"]}'
+                state: success
+              env:
+                GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+            - name: Set deployment status to failure
+              id: failed_deployment
+              uses: octokit/request-action@v2.x
+              if: failure()
+              with:
+                route: POST /repos/:repository/deployments/:deployment/statuses
+                repository: ${{ github.repository }}
+                deployment: ${{ fromJson(steps.create_deployment.outputs.data).id }}
+                environment: "branch-deploy-${{ github.event.payload.issue.number }}"
+                log_url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                mediaType: '{"previews": ["ant-man"]}'
+                state: failure
+              env:
+                GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
