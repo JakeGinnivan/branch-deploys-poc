@@ -26,7 +26,7 @@ jobs:
             - uses: peter-evans/repository-dispatch@v1
               if: steps.comment-branch.outputs.ref
               with:
-                token: ${{ secrets.GITHUB_TOKEN }}
+                token: ${{ secrets.PAT }}
                 repository: JakeGinnivan/branch-deploys-poc
                 event-type: branch-deploy
                 client-payload: '{"ref": "${{ steps.comment-branch.outputs.ref }}" }'
