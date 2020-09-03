@@ -22,3 +22,13 @@ jobs:
             - name: install yarn
               run: if ! yarn --version; then npm install -g yarn; fi
 
+            - name: "Check stack existence"
+              id: check_stack
+              uses: andstor/file-existence-action@v1
+              with:
+                  files: ".pulumi/the-game.pr${{ github.event.payload.issue.number }}.yml"
+
+            - name: Create stack
+              if: steps.check_stack.outputs.files_exists == 'true'
+              # Only runs if all of the files exists
+              run: echo Creating stack....
